@@ -1,27 +1,28 @@
 import kotlin.math.abs
 
+fun parseGroups(s: List<String>): List<List<Int>> {
+    return s.map {
+        it.split("   ")
+            .mapIndexed { index, v -> index to v }
+    }.flatten().groupBy({ it.first }) { v -> v.second.toInt() }.values.toList()
+}
+
+
 fun main() {
     fun part1(input: List<String>): Int {
-        return input.map { s -> s.split("   ").mapIndexed { index, v -> index to v } }.flatten()
-            .groupBy { it.first }.values.map { it.map { it.second }.sorted() }
-            .map { it.mapIndexed { i, v -> i to v } }
-            .flatten()
-            .groupBy { it.first }
-            .values
-            .sumOf { abs(it[0].second.toInt() - it[1].second.toInt()) }
+        val groups = parseGroups(input).map { v -> v.sorted() }
+        return groups[0].zip(groups[1]).sumOf { abs(it.first - it.second) }
     }
 
     fun part2(input: List<String>): Int {
-        val cache = HashMap<String, Int>()
-        val groups =
-            input.map { s -> s.split("   ").mapIndexed { index, v -> index to v } }.flatten()
-                .groupBy { it.first }.values.map { it.map { it.second } }
+        val groups = parseGroups(input)
+        val cache = HashMap<Int, Int>()
         return groups[0].sumOf { g ->
             val v = cache[g]
             if (v != null) {
                 v
             } else {
-                val count = g.toInt() * groups[1].count { it == g }
+                val count = g * groups[1].count { it == g }
                 cache[g] = count
                 count
             }
