@@ -1,10 +1,11 @@
 import kotlin.math.abs
 
 fun parseGroups(s: List<String>): List<List<Int>> {
-    return s.map {
-        it.split("   ")
-            .mapIndexed { index, v -> index to v }
-    }.flatten().groupBy({ it.first }) { v -> v.second.toInt() }.values.toList()
+    val (l, r) = s.map {
+        val v = it.split("   ")
+        v[0].toInt() to v[1].toInt()
+    }.unzip()
+    return listOf(l, r)
 }
 
 
