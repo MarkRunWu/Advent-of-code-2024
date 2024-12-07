@@ -1,5 +1,42 @@
 import kotlin.math.abs
-import kotlin.math.max
+import kotlin.math.sign
+
+enum class Dir {
+    UP, RIGHT, DOWN, LEFT;
+
+    companion object {
+        val symbols = Dir.entries.map { it.symbol }
+    }
+
+    val value: Pair<Int, Int>
+        get() {
+            return when (this) {
+                UP -> 0 to -1 // upward
+                RIGHT -> 1 to 0 // right
+                DOWN -> 0 to 1 // downward
+                LEFT -> -1 to 0 // left
+            }
+        }
+
+    val symbol: Char
+        get() {
+            return when (this) {
+                RIGHT -> '→'
+                LEFT -> '←'
+                UP -> '↑'
+                DOWN -> '↓'
+            }
+        }
+
+    fun rotated(): Dir {
+        return when (this) {
+            UP -> RIGHT
+            RIGHT -> DOWN
+            DOWN -> LEFT
+            LEFT -> UP
+        }
+    }
+}
 
 fun findObstacles(input: List<String>): List<Pair<Int, Int>> {
     return input.mapIndexed { i, s ->
@@ -24,81 +61,114 @@ fun findOrigin(input: List<String>): Pair<Int, Int> {
     }.filterNotNull().first()
 }
 
+fun Pair<Int, Int>.distanceBetween(other: Pair<Int, Int>): Int {
+    return abs(first - other.first) + abs(second - other.second)
+}
+
+fun Pair<Int, Int>.isOnThePath(origin: Pair<Int, Int>, dir: Pair<Int, Int>): Boolean {
+    return (first - origin.first).sign == dir.first && (second - origin.second).sign == dir.second
+}
+
+fun Pair<Int, Int>.minus(dir: Pair<Int, Int>): Pair<Int, Int> {
+    return first - dir.first to second - dir.second
+}
+
 fun getGuardMap(input: List<String>): List<List<Char>> {
     val obstacles = findObstacles(input)
     val origin = findOrigin(input)
     var start = origin
-    val dirs = listOf(
-        0 to -1, // upward
-        1 to 0, // right
-        0 to 1, // downward
-        -1 to 0 // left
-    )
     val mutableMap = input.map { it.toMutableList() }.toMutableList()
-    var dirIndex = 0
-    var (dx, dy) = dirs[dirIndex]
+    var dir = Dir.UP
+    var (dx, dy) = dir.value
     do {
         val (x, y) = start
         mutableMap[y][x] = when (mutableMap[y][x]) {
-            'X' -> 'Y'
-            else -> 'X'
+            '^' -> '^'
+            else -> dir.symbol
         }
         val obstacle = obstacles.firstOrNull { (px, py) ->
             px == x + dx && py == y + dy
         }
         if (obstacle != null) {
-            dirIndex = (dirIndex + 1) % dirs.size
-            dx = dirs[dirIndex].first
-            dy = dirs[dirIndex].second
+            dir = dir.rotated()
+            dx = dir.value.first
+            dy = dir.value.second
+        } else {
+            start = x + dx to y + dy
         }
-        start = x + dx to y + dy
     } while (start.first >= 0 && start.second >= 0 && start.first < input[0].length && start.second < input.size)
     return mutableMap
 }
 
+fun canMakeALoop(
+    obstacles: List<Pair<Int, Int>>,
+    virtualObstacle: Pair<Int, Int>,
+    dir: Dir, from: Pair<Int, Int>
+): Boolean {
+    val visited = HashMap<Dir, HashSet<Pair<Int, Int>>>().also {
+        for (i in Dir.entries) {
+            it.putIfAbsent(i, HashSet())
+        }
+    }
+    visited[dir]!!.add(virtualObstacle)
+    var start = from
+    val obstaclesOptions = obstacles + virtualObstacle
+    var currentDir = dir.rotated()
+    while (true) {
+        val ob = obstaclesOptions.filter {
+            it.isOnThePath(start, currentDir.value)
+        }.minByOrNull { it.distanceBetween(start) } ?: return false
+        if (visited[currentDir]!!.contains(ob)) {
+            return true
+        }
+        start = ob.minus(currentDir.value)
+        visited[currentDir]!!.add(ob)
+        currentDir = currentDir.rotated()
+    }
+}
+
 fun main() {
     fun part1(input: List<String>): Int {
-        return getGuardMap(input).sumOf { it.count { s -> s == 'X' || s == 'Y' } }
+        return getGuardMap(input).sumOf { it.count { s -> Dir.symbols.contains(s) || s == '^' } }
     }
 
     fun part2(input: List<String>): Int {
+        val pathMap = input.map { it.toMutableList() }.toMutableList()
+        val guardMap = getGuardMap(input).map { it.toMutableList() }.toMutableList()
         val origin = findOrigin(input)
         val obstacles = findObstacles(input)
-        val guardMap = getGuardMap(input).map { it.toMutableList() }.toMutableList()
-        val dirs = listOf(
-            0 to -1, // upward
-            1 to 0, // right
-            0 to 1, // downward
-            -1 to 0 // left
-        )
-        var dirIndex = 0
         var start = origin
-        var (dx, dy) = dirs[dirIndex]
-        var rotateCount = 0
+        var dir = Dir.UP
+        var (dx, dy) = dir.value
         do {
             val (x, y) = start
-            if (x + dx in input.indices && y + dy in input.indices && rotateCount >= 3) {
-                val (nextDX, nextDY) = dirs[(dirIndex + 1) % dirs.size]
-                if (obstacles.any {
-                        val (diffX, diffY) = it.first - x to it.second - y
-                        diffX / abs(max(1, diffX)) == nextDX && diffY / abs(max(1, diffY)) == nextDY
-                    }) {
-                    guardMap[y + dy][x + dx] = 'O'
-                }
-            }
+            pathMap[y][x] = dir.symbol
             val obstacle = obstacles.firstOrNull { (px, py) ->
                 px == x + dx && py == y + dy
             }
             if (obstacle != null) {
-                dirIndex = (dirIndex + 1) % dirs.size
-                rotateCount++
-                dx = dirs[dirIndex].first
-                dy = dirs[dirIndex].second
+                dir = dir.rotated()
+                dx = dir.value.first
+                dy = dir.value.second
+            } else {
+                val (virtualObstacleX, virtualObstacleY) = x + dx to y + dy
+                if (virtualObstacleX in input[0].indices && virtualObstacleY in input.indices &&
+                    !Dir.symbols.contains(pathMap[virtualObstacleY][virtualObstacleX])
+                ) {
+                    if (canMakeALoop(
+                            obstacles,
+                            virtualObstacleX to virtualObstacleY,
+                            dir,
+                            x to y
+                        )
+                    ) {
+                        guardMap[virtualObstacleY][virtualObstacleX] = 'O'
+                    }
+                }
+                start = x + dx to y + dy
             }
-            start = x + dx to y + dy
         } while (start.first >= 0 && start.second >= 0 && start.first < input[0].length && start.second < input.size)
-        return guardMap.also { r -> println(r.joinToString("\n")) }
-            .sumOf { it.count { s -> s == 'O' } }
+        return guardMap.sumOf { it.count { s -> s == 'O' } }
     }
 
     val testInput = readInput("Day06_test")
