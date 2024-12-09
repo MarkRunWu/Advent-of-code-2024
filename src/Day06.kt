@@ -91,8 +91,9 @@ fun getGuardMap(input: List<String>): List<List<Char>> {
             dir = dir.rotated()
             dx = dir.value.first
             dy = dir.value.second
+        } else {
+            start = x + dx to y + dy
         }
-        start = x + dx to y + dy
     } while (start.first >= 0 && start.second >= 0 && start.first < input[0].length && start.second < input.size)
     return mutableMap
 }
@@ -116,7 +117,6 @@ fun canMakeALoop(obstacles: List<Pair<Int, Int>>,
             it.isOnThePath(start, currentDir.value)
         }.minByOrNull { it.distanceBetween(start) } ?: return emptyList()
         if (visited[currentDir]!!.contains(ob)) {
-            println("$ob $selectedObstacles")
             return selectedObstacles.toList()
         }
         start = ob.minus(currentDir.value)
@@ -128,7 +128,7 @@ fun canMakeALoop(obstacles: List<Pair<Int, Int>>,
 
 fun main() {
     fun part1(input: List<String>): Int {
-        return getGuardMap(input).also { println(it.joinToString("\n") ) }.sumOf { it.count { s -> Dir.symbols.contains(s) || s == '^' } }
+        return getGuardMap(input).sumOf { it.count { s -> Dir.symbols.contains(s) || s == '^' } }
     }
 
     fun part2(input: List<String>): Int {
@@ -158,23 +158,20 @@ fun main() {
                             val (hx, hy) = hits[i]
                             tmpMap[hy][hx] += "[$i]"
                         }
-                        println(tmpMap.joinToString("\n"))
-                        println()
                         guardMap[virtualObstacle.second][virtualObstacle.first] = 'O'
                         count++
                     }
                 }
+                start = x + dx to y + dy
             }
-            start = x + dx to y + dy
         } while (start.first >= 0 && start.second >= 0 && start.first < input[0].length && start.second < input.size)
         println(count)
-        return guardMap.also { r -> println(r.joinToString("\n")) }
-            .sumOf { it.count { s -> s == 'O' } }
+        return guardMap.sumOf { it.count { s -> s == 'O' } }
     }
 
     val testInput = readInput("Day06_test")
-//    check(part1(testInput) == 41)
-//    check(part2(testInput) == 6)
+    check(part1(testInput) == 41)
+    check(part2(testInput) == 6)
 
     val input = readInput("Day06")
     part1(input).println()
