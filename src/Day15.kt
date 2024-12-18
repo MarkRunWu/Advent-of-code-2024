@@ -1,12 +1,21 @@
+data class Box(val pts: List<Pair<Int, Int>>) {
+    fun isHit(pos: Pair<Int, Int>): Boolean {
+        return pts.any { it == pos }
+    }
+    fun gps(): Int {
+        return pts.sortedBy { it.second }.minBy { it.first }.gps()
+    }
+}
+
 data class WarehouseSetting(
     val robotOrigin: Pair<Int, Int>,
-    val boxes: List<Pair<Int, Int>>,
+    val boxes: List<Box>,
     val wallMap: List<List<Boolean>>
 )
 
 fun WarehouseSetting.copyWith(
     origin: Pair<Int, Int>? = null,
-    boxes: List<Pair<Int, Int>>? = null,
+    boxes: List<Box>? = null,
     wallMap: List<List<Boolean>>? = null
 ): WarehouseSetting {
     return WarehouseSetting(origin ?: robotOrigin, boxes ?: this.boxes, wallMap ?: this.wallMap)
@@ -21,9 +30,13 @@ fun WarehouseSetting.dumpMap() {
                 map.append("#")
             } else if (robotOrigin == j to i) {
                 map.append("@")
-            } else if (boxes.contains(j to i)) {
+            } else if (boxes.any { it.pts.first() == j to i && it.pts.size == 1 }) {
                 map.append("O")
-            } else {
+            } else if (boxes.any { it.pts.first() == j to i && it.pts.size == 2 }) {
+                map.append("[")
+            } else if (boxes.any { it.pts.last() == j to i && it.pts.size == 2 }) {
+                map.append("]")
+            }else {
                 map.append(".")
             }
         }
@@ -48,14 +61,19 @@ fun parseRobotMovements(input: List<String>): List<RobotDir> {
 
 fun parseMap(map: List<String>): WarehouseSetting {
     var robotPos: Pair<Int, Int> = 0 to 0
-    val boxes = ArrayList<Pair<Int, Int>>()
+    val boxes = ArrayList<Box>()
     val wallMap = Array(map.size) { Array(map[0].length) { false } }
     for (i in map.indices) {
+        var start: Pair<Int, Int> = 0 to 0
         for (j in map[0].indices) {
             if (map[i][j] == '@') {
                 robotPos = j to i
             } else if (map[i][j] == 'O') {
-                boxes.add(j to i)
+                boxes.add(Box(listOf(j to i)))
+            } else if (map[i][j] == '[') {
+                start = j to i
+            } else if (map[i][j] == ']') {
+                boxes.add(Box(listOf(start, j to i)))
             } else if (map[i][j] == '#') {
                 wallMap[i][j] = true
             }
@@ -84,16 +102,30 @@ fun simulateRobotMovements(
         var boxes = currentSetting.boxes
         if (x in wallMap[0].indices && y in wallMap.indices && !wallMap[y][x]) {
             val mutBoxes = boxes.toMutableSet()
-            val hitboxes = HashSet<Pair<Int, Int>>()
+            val hitboxes = HashSet<Box>()
             var currentPos = x to y
-            while (mutBoxes.contains(currentPos)) {
-                hitboxes.add(currentPos)
-                mutBoxes.remove(currentPos)
-                currentPos += movement
-            }
+            var nextPts = listOf(x to y)
+            do {
+                val hits = mutBoxes.filter { box -> nextPts.any { box.isHit(it) } }
+                if (hits.isEmpty()) {
+                    break
+                }
+                nextPts = hits.flatMap { box ->
+                    when(movement) {
+                        RobotDir.LEFT -> listOf(box.pts.last())
+                        RobotDir.RIGHT -> listOf(box.pts.first())
+                        RobotDir.UP, RobotDir.DOWN -> box.pts
+                    }
+                }.map { it + movement }
+                hitboxes.addAll(hits)
+                mutBoxes.removeAll(hits.toSet())
+                while (!nextPts.contains(currentPos)) {
+                    currentPos += movement
+                }
+            } while (true)
             var origin = x to y
             if (!wallMap[currentPos.second][currentPos.first]) {
-                boxes = mutBoxes.toList() + hitboxes.map { it + movement }
+                boxes = mutBoxes.toList() + hitboxes.map { box -> Box(box.pts.map { it + movement }) }
             } else if (hitboxes.isNotEmpty()) {
                 origin = currentSetting.robotOrigin
             }
