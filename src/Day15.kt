@@ -2,6 +2,7 @@ data class Box(val pts: List<Pair<Int, Int>>) {
     fun isHit(pos: Pair<Int, Int>): Boolean {
         return pts.any { it == pos }
     }
+
     fun gps(): Int {
         return pts.sortedBy { it.second }.minBy { it.first }.gps()
     }
@@ -22,9 +23,12 @@ fun WarehouseSetting.copyWith(
 
 }
 
-fun WarehouseSetting.dumpMap() {
+fun WarehouseSetting.dumpMap(): String {
     val map = StringBuilder()
     for (i in wallMap.indices) {
+        if (i > 0) {
+            map.append("\n")
+        }
         for (j in wallMap[i].indices) {
             if (wallMap[i][j]) {
                 map.append("#")
@@ -36,13 +40,12 @@ fun WarehouseSetting.dumpMap() {
                 map.append("[")
             } else if (boxes.any { it.pts.last() == j to i && it.pts.size == 2 }) {
                 map.append("]")
-            }else {
+            } else {
                 map.append(".")
             }
         }
-        map.append("\n")
     }
-    println(map.toString())
+    return map.toString()
 }
 
 fun parseRobotMovements(input: List<String>): List<RobotDir> {
@@ -97,37 +100,43 @@ fun simulateRobotMovements(
 ): WarehouseSetting {
     var currentSetting = initialSetting
     val wallMap = currentSetting.wallMap
-    for (movement in movements) {
+    for (i in movements.indices) {
+        val movement = movements[i]
         val (x, y) = currentSetting.robotOrigin + movement
         var boxes = currentSetting.boxes
         if (x in wallMap[0].indices && y in wallMap.indices && !wallMap[y][x]) {
             val mutBoxes = boxes.toMutableSet()
             val hitboxes = HashSet<Box>()
             var currentPos = x to y
-            var nextPts = listOf(x to y)
+            var detectingHitPts = listOf(x to y)
             do {
-                val hits = mutBoxes.filter { box -> nextPts.any { box.isHit(it) } }
+                if (detectingHitPts.any { (wx, wy) -> wallMap[wy][wx] }) {
+                    break
+                }
+                val hits = mutBoxes.filter { box -> detectingHitPts.any { box.isHit(it) } }
                 if (hits.isEmpty()) {
                     break
                 }
-                nextPts = hits.flatMap { box ->
-                    when(movement) {
-                        RobotDir.LEFT -> listOf(box.pts.last())
-                        RobotDir.RIGHT -> listOf(box.pts.first())
+                hitboxes.addAll(hits)
+                mutBoxes.removeAll(hits.toSet())
+                detectingHitPts = hits.flatMap { box ->
+                    when (movement) {
+                        RobotDir.LEFT -> listOf(box.pts.first())
+                        RobotDir.RIGHT -> listOf(box.pts.last())
                         RobotDir.UP, RobotDir.DOWN -> box.pts
                     }
                 }.map { it + movement }
-                hitboxes.addAll(hits)
-                mutBoxes.removeAll(hits.toSet())
-                while (!nextPts.contains(currentPos)) {
-                    currentPos += movement
+                currentPos = when (movement) {
+                    RobotDir.UP, RobotDir.DOWN -> currentPos.first to detectingHitPts.first().second
+                    RobotDir.LEFT, RobotDir.RIGHT -> detectingHitPts.first().first to currentPos.second
                 }
             } while (true)
-            var origin = x to y
-            if (!wallMap[currentPos.second][currentPos.first]) {
-                boxes = mutBoxes.toList() + hitboxes.map { box -> Box(box.pts.map { it + movement }) }
-            } else if (hitboxes.isNotEmpty()) {
-                origin = currentSetting.robotOrigin
+            val origin = if (detectingHitPts.none { (wx, wy) -> wallMap[wy][wx] }) {
+                boxes =
+                    mutBoxes.toList() + hitboxes.map { box -> Box(box.pts.map { it + movement }) }
+                x to y
+            } else {
+                currentSetting.robotOrigin
             }
             currentSetting = currentSetting.copyWith(origin, boxes)
         }
@@ -159,17 +168,37 @@ fun main() {
         val movements = parseRobotMovements(input.subList(separatorIndex + 1, input.size))
         return simulateRobotMovements(
             warehouseSetting,
-            movements.also { println(it) }).also { it.dumpMap() }.boxes.sumOf {
+            movements
+        ).also { it.dumpMap() }.boxes.sumOf {
             it.gps()
         }
     }
 
     fun part2(input: List<String>): Int {
-        return 0
+        val separatorIndex = input.indexOfFirst { it.isEmpty() }
+        val scaledMap = input.subList(0, separatorIndex).map {
+            it.map { c ->
+                when (c) {
+                    '#' -> "##"
+                    'O' -> "[]"
+                    '@' -> "@."
+                    else -> ".."
+                }
+            }.joinToString("")
+        }
+        val warehouseSetting = parseMap(scaledMap)
+        check(warehouseSetting.dumpMap() == scaledMap.joinToString("\n").also { println(it) })
+        val movements = parseRobotMovements(input.subList(separatorIndex + 1, input.size))
+        return simulateRobotMovements(
+            warehouseSetting,
+            movements
+        ).also { println(it.dumpMap()) }.boxes.sumOf { it.gps() }
     }
 
     val testInput = readInput("Day15_test")
     check(part1(testInput) == 10092)
+    check(part2(testInput) == 9021)
+
 
     val input = readInput("Day15")
     part1(input).println()
