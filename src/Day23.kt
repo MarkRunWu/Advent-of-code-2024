@@ -26,32 +26,31 @@ fun findGroups(
     return r
 }
 
-fun day1(input: List<String>): Int {
-    val nodeMap = input.flatMap {
-        val (a, b) = it.split("-")
-        listOf(a to b, b to a)
-    }.groupBy({ (a, _) -> a }) { it.second }
-
-    return nodeMap.keys.flatMap { findGroups(nodeMap, it, HashSet(), setOf(it), 3) }.toSet()
-        .count {
-        it.size == 3 && it.any { s -> s.startsWith('t') }
-    }
-}
-
-fun day2(input: List<String>): String {
-    val nodeMap = input.flatMap {
-        val (a, b) = it.split("-")
-        listOf(a to b, b to a)
-    }.groupBy({ (a, _) -> a }) { it.second }
-
-    return nodeMap.keys.flatMap { findGroups(nodeMap, it, HashSet(), setOf(it)) }.toSet()
-        .maxBy {
-        it.size
-    }.sorted().joinToString(",")
-}
-
 
 fun main() {
+    fun day1(input: List<String>): Int {
+        val nodeMap = input.flatMap {
+            val (a, b) = it.split("-")
+            listOf(a to b, b to a)
+        }.groupBy({ (a, _) -> a }) { it.second }
+
+        return nodeMap.keys.flatMap { findGroups(nodeMap, it, HashSet(), setOf(it), 3) }.toSet()
+            .count {
+                it.size == 3 && it.any { s -> s.startsWith('t') }
+            }
+    }
+
+    fun day2(input: List<String>): String {
+        val nodeMap = input.flatMap {
+            val (a, b) = it.split("-")
+            listOf(a to b, b to a)
+        }.groupBy({ (a, _) -> a }) { it.second }
+
+        return nodeMap.keys.flatMap { findGroups(nodeMap, it, HashSet(), setOf(it)) }.toSet()
+            .maxBy {
+                it.size
+            }.sorted().joinToString(",")
+    }
     val testInput = readInput("Day23_test")
 
     check(day1(testInput) == 7)
